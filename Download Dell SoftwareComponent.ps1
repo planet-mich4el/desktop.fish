@@ -1,22 +1,23 @@
 ﻿<#
     Author:  Michael 
-    Version: 1.0
+    Version: 1.1
     Created: 2022-10-21
 
-    Use this script if you want to download single drivers for Dell computers, rather than the full Driver Package. 
-    In cases for OSD over CMG, it is useful to ensure the network drivers are available once the full OS starts.
+    Download the latest Dell driver components as needed. It doesn't download an entire Driver Package, which is huge in size. 
+    Only download the categories you specify to keep the downloaded files minimal.
 #>
 
 # system variables
 If (Test-Path -Path Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlset\Control\MiniNT -ErrorAction:SilentlyContinue) {
     $TSEnv = New-Object -COMObject Microsoft.SMS.TSEnvironment
-    $rootFolder = "$($TSEnv.Value("OSDTargetSystemDrive"))\Temp\DellDrivers"
+    $rootFolder = "$($TSEnv.Value("OSDTargetSystemDrive"))\Windows\Temp\DellDrivers"
 } Else {
     $rootFolder = "$($env:SystemRoot)\Temp\DellDrivers"
 }
 
 $systemSku = (Get-WmiObject -Namespace root\WMI -Class MS_SystemInformation).SystemSKU
-$driverCategory = "Serial ATA|Network" # Delimiter: "|"
+$systemSku = "0A35"
+$driverCategory = "Serial ATA|Chipset" # Delimiter: "|"
 $targetOs = "Windows 11"
 
 # create root folder for all files required 
@@ -70,6 +71,12 @@ $Expand = EXPAND $InventoryComponentCab $InventoryComponentXml
 Write-Output "$(Get-Date) :: Load: $InventoryComponentXml"
 [xml]$XmlContent = Get-Content $InventoryComponentXml -Verbose
 $InventoryComponent = $XmlContent.Manifest.SoftwareComponent | Where-Object { $_.ComponentType.value -eq "DRVR" -and $_.Category.Display.'#cdata-section' -match $driverCategory -and $_.SupportedOperatingSystems.OperatingSystem.Display.'#cdata-section' -eq $targetOs }
+
+# only get latest drivers
+$InventoryComponentLatest = ($InventoryComponent.Name.Display.'#cdata-section' | Group-Object) | ForEach-Object {
+    $Group = $_
+    $InventoryComponent | Where-Object {$_.Name.Display.'#cdata-section' -eq $Group.Name } | Sort-Object dellVersion -Descending | Select-Object -First 1
+}
 #endregion
 
 
@@ -82,21 +89,21 @@ $SoftwareComponentExtract = "$rootFolder\$($targetOs -Replace(' '))"
 If (Test-Path $SoftwareComponentExtract -ErrorAction:SilentlyContinue) {Remove-Item -Path $SoftwareComponentExtract -Force -Recurse}
 New-Item -Path $SoftwareComponentExtract -ItemType Directory -ErrorAction:SilentlyContinue | Out-Null
 
-ForEach ($SoftwareComponent In $InventoryComponent) {
+ForEach ($SoftwareComponent In $InventoryComponentLatest) {
     
     # declare variable for next section
     $SoftwareComponentUrl = "https://downloads.dell.com/$($SoftwareComponent.path)"
     $SoftwareComponentExe = "$rootFolder\$($SoftwareComponent.path.Split("/") | Where-Object {$_ -match ".exe"})"
 
     # download driver exe-file
-    Write-Output "$(Get-Date) :: Download: $SoftwareComponentUrl"
+    Write-Output "$(Get-Date) :: Download: $SoftwareComponentUrl; Size: $([math]::round($SoftwareComponent.size /1Mb,2))Mb"
     If (Test-Path $SoftwareComponentExe -ErrorAction:SilentlyContinue) {Remove-Item -Path $SoftwareComponentExe -Force}
     Invoke-RestMethod -Uri $SoftwareComponentUrl -OutFile $SoftwareComponentExe -UseBasicParsing
 
     If (($SoftwareComponent.Cryptography.Hash | Where-Object {$_.algorithm -eq "MD5"}).'#text' -eq (Get-FileHash $SoftwareComponentExe -Algorithm MD5).Hash) {
         Try {
             # extract driver exe-file
-            Write-Output "$(Get-Date) :: Extract: $SoftwareComponentUrl"
+            Write-Output "$(Get-Date) :: Extract: $SoftwareComponentExe"
             Start-Process $SoftwareComponentExe "/s /e=""$SoftwareComponentExtract\$($SoftwareComponent.packageID)""" -Wait
         } Catch {}
     }
@@ -104,5 +111,6 @@ ForEach ($SoftwareComponent In $InventoryComponent) {
 #endregion
 
 If ($TSEnv) {
-    $TSEnv.value('DRIVERS') = $SoftwareComponentExtract
+    $TSEnv.Value('DRIVERS') = $SoftwareComponentExtract
+    # DISM /Image:C:\ /Add-Driver /Driver:C:\WINDOWS\Temp\DellDrivers\Windows11\ /Recurse
 }
