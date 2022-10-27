@@ -17,7 +17,7 @@ If (Test-Path -Path Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlset\Contro
 
 $systemSku = (Get-WmiObject -Namespace root\WMI -Class MS_SystemInformation).SystemSKU
 # $systemSku = "0A35" # Latitude 7320 
-$driverCategory = "Serial ATA|Chipset" # Delimiter: "|"
+$driverCategory = "Serial ATA" # Delimiter: "|"
 $targetOs = "Windows 11"
 
 # create root folder for all files required 
@@ -99,7 +99,7 @@ ForEach ($SoftwareComponent In $InventoryComponentLatest) {
     Write-Output "$(Get-Date) :: Download: $SoftwareComponentUrl; Size: $([math]::round($SoftwareComponent.size /1Mb,2))Mb"
     If (Test-Path $SoftwareComponentExe -ErrorAction:SilentlyContinue) {Remove-Item -Path $SoftwareComponentExe -Force}
     Invoke-RestMethod -Uri $SoftwareComponentUrl -OutFile $SoftwareComponentExe -UseBasicParsing
-
+    
     If (($SoftwareComponent.Cryptography.Hash | Where-Object {$_.algorithm -eq "MD5"}).'#text' -eq (Get-FileHash $SoftwareComponentExe -Algorithm MD5).Hash) {
         Try {
             # extract driver exe-file
