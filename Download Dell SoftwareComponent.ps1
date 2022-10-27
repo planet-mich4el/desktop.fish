@@ -1,6 +1,6 @@
 ﻿<#
     Author:  Michael 
-    Version: 1.1
+    Version: 1.2
     Created: 2022-10-21
 
     Download the latest Dell driver components as needed. It doesn't download an entire Driver Package, which is huge in size. 
@@ -16,7 +16,7 @@ If (Test-Path -Path Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlset\Contro
 }
 
 $systemSku = (Get-WmiObject -Namespace root\WMI -Class MS_SystemInformation).SystemSKU
-$systemSku = "0A35"
+# $systemSku = "0A35" # Latitude 7320 
 $driverCategory = "Serial ATA|Chipset" # Delimiter: "|"
 $targetOs = "Windows 11"
 
