@@ -1,7 +1,7 @@
 ﻿<#
     Author:  Michael 
-    Version: 1.0
-    Created: 2022-10-27
+    Version: 1.1
+    Created: 2022-10-31
 
     Download the latest Dell driver package.
 #>
@@ -16,7 +16,7 @@ If (Test-Path -Path Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlset\Contro
 
 $systemModel = (Get-CimInstance -ClassName Win32_ComputerSystem).Model
 # $systemModel = "Latitude 7320" 
-$targetOs = "Windows10"
+$targetOs = "Windows11"
 
 # create root folder for all files required 
 New-Item -Path $rootFolder -ItemType Directory -ErrorAction:SilentlyContinue | Out-Null
@@ -67,6 +67,11 @@ If (($DriverPackage.Cryptography.Hash | Where-Object {$_.algorithm -eq "MD5"}).'
         # extract driver packeage
         Write-Output "$(Get-Date) :: Extract: $DriverPackageExe"
         Start-Process $DriverPackageExe "/s /e=""$DriverPackageExtract""" -Wait
+
+        # remove non-F6 drivers (in Windows XP you had to tap the F6 key to inject additional drivers during installation)
+        $pathF6 = Get-ChildItem $DriverPackageExtract -Recurse -Directory | Where-Object {$_.Name -eq "F6"} 
+        $pathNonF6 = Get-Item ($pathF6.FullName + "\..\Drivers") -ErrorAction:SilentlyContinue
+        If (Test-Path $pathNonF6 -ErrorAction:SilentlyContinue) {Remove-Item -Path $pathNonF6 -Force -Recurse}
     } Catch {}
 }
 #endregion
