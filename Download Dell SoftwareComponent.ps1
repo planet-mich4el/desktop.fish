@@ -1,7 +1,7 @@
 ﻿<#
     Author:  Michael 
-    Version: 1.2
-    Created: 2022-10-21
+    Version: 1.3
+    Created: 2022-10-28
 
     Download the latest Dell driver components as needed. It doesn't download an entire Driver Package, which is huge in size. 
     Only download the categories you specify to keep the downloaded files minimal.
@@ -105,6 +105,11 @@ ForEach ($SoftwareComponent In $InventoryComponentLatest) {
             # extract driver exe-file
             Write-Output "$(Get-Date) :: Extract: $SoftwareComponentExe"
             Start-Process $SoftwareComponentExe "/s /e=""$SoftwareComponentExtract\$($SoftwareComponent.packageID)""" -Wait
+            
+            # remove non-F6 drivers (in Windows XP you had to tap the F6 key to inject additional drivers during installation)
+            $pathF6 = Get-ChildItem $SoftwareComponentExtract\$($SoftwareComponent.packageID) -Recurse -Directory | Where-Object {$_.Name -eq "F6"} 
+            $pathNonF6 = Get-Item ($pathF6.FullName + "\..\Drivers") -ErrorAction:SilentlyContinue
+            If (Test-Path $pathNonF6 -ErrorAction:SilentlyContinue) {Remove-Item -Path $pathNonF6 -Force -Recurse}
         } Catch {}
     }
 }
