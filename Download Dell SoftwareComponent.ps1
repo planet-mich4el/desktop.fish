@@ -1,7 +1,7 @@
 ﻿<#
     Author:  Michael 
-    Version: 1.3
-    Created: 2022-10-28
+    Version: 1.4
+    Created: 2022-11-18
 
     Download the latest Dell driver components as needed. It doesn't download an entire Driver Package, which is huge in size. 
     Only download the categories you specify to keep the downloaded files minimal.
@@ -15,10 +15,11 @@ If (Test-Path -Path Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlset\Contro
     $rootFolder = "$($env:SystemRoot)\Temp\DellDrivers"
 }
 
-$systemSku = (Get-WmiObject -Namespace root\WMI -Class MS_SystemInformation).SystemSKU
-# $systemSku = "0A35" # Latitude 7320 
-$driverCategory = "Serial ATA" # Delimiter: "|"
+$systemModel = (Get-CimInstance -ClassName Win32_ComputerSystem).Model
+#$systemModel = "Precision 5470"
+$driverCategory = "Serial ATA|Network|Camera" # Delimiter: "|"
 $targetOs = "Windows 11"
+$targetArch = "x64"
 
 # create root folder for all files required 
 New-Item -Path $rootFolder -ItemType Directory -ErrorAction:SilentlyContinue | Out-Null
@@ -45,7 +46,8 @@ $Expand = EXPAND $CatalogIndexPCCab $CatalogIndexPCXml
 # filter index cab-file for the model required  
 Write-Output "$(Get-Date) :: Load: $CatalogIndexPCXml"
 [xml]$XmlContent = Get-Content $CatalogIndexPCXml -Verbose
-$CatalogIndexPC = $XmlContent.ManifestIndex.GroupManifest | Where-Object {$_.SupportedSystems.Brand.Model.systemID -eq $systemSku }
+$CatalogIndexPC = $XmlContent.ManifestIndex.GroupManifest | Where-Object {$_.SupportedSystems.Brand.Model.Display.'#cdata-section' -eq $systemModel }
+If (-not $CatalogIndexPC) { Exit 1 }
 #endregion
 
 
@@ -70,7 +72,8 @@ $Expand = EXPAND $InventoryComponentCab $InventoryComponentXml
 # filter model specific cab-file for drivers required
 Write-Output "$(Get-Date) :: Load: $InventoryComponentXml"
 [xml]$XmlContent = Get-Content $InventoryComponentXml -Verbose
-$InventoryComponent = $XmlContent.Manifest.SoftwareComponent | Where-Object { $_.ComponentType.value -eq "DRVR" -and $_.Category.Display.'#cdata-section' -match $driverCategory -and $_.SupportedOperatingSystems.OperatingSystem.Display.'#cdata-section' -eq $targetOs }
+$InventoryComponent = $XmlContent.Manifest.SoftwareComponent | Where-Object { $_.Category.Display.'#cdata-section' -match $driverCategory -and $_.SupportedOperatingSystems.OperatingSystem.Display.'#cdata-section' -eq $targetOs }
+If (-not $InventoryComponent) { Exit 1 }
 
 # only get latest drivers
 $InventoryComponentLatest = ($InventoryComponent.Name.Display.'#cdata-section' | Group-Object) | ForEach-Object {
@@ -83,9 +86,8 @@ $InventoryComponentLatest = ($InventoryComponent.Name.Display.'#cdata-section' |
 Write-Output "`n`t --- SoftwareComponent ---"
 #region
 
-
 # declare variable for next section
-$SoftwareComponentExtract = "$rootFolder\$($targetOs -Replace(' '))"
+$SoftwareComponentExtract = ("$rootFolder\$($systemModel)_$($targetOs)") -Replace(' ')
 If (Test-Path $SoftwareComponentExtract -ErrorAction:SilentlyContinue) {Remove-Item -Path $SoftwareComponentExtract -Force -Recurse}
 New-Item -Path $SoftwareComponentExtract -ItemType Directory -ErrorAction:SilentlyContinue | Out-Null
 

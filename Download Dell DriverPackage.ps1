@@ -1,7 +1,7 @@
 ﻿<#
     Author:  Michael 
-    Version: 1.1
-    Created: 2022-10-31
+    Version: 1.4
+    Created: 2022-11-18
 
     Download the latest Dell driver package.
 #>
@@ -15,8 +15,9 @@ If (Test-Path -Path Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlset\Contro
 }
 
 $systemModel = (Get-CimInstance -ClassName Win32_ComputerSystem).Model
-# $systemModel = "Latitude 7320" 
-$targetOs = "Windows11"
+#$systemModel = "Precision 5470"
+$targetOs = "Windows 11"; $targetOs = $targetOs.Replace(" ","")
+$targetArch = "x64"
 
 # create root folder for all files required 
 New-Item -Path $rootFolder -ItemType Directory -ErrorAction:SilentlyContinue | Out-Null
@@ -43,7 +44,8 @@ $Expand = EXPAND $DriverPackCatalogCab $DriverPackCatalogXml
 # filter cab-file for the model required  
 Write-Output "$(Get-Date) :: Load: $DriverPackCatalogXml"
 [xml]$XmlContent = Get-Content $DriverPackCatalogXml -Verbose
-$DriverPackage = $XmlContent.DriverPackManifest.DriverPackage | Where-Object {$_.SupportedOperatingSystems.OperatingSystem.osCode -eq $targetOs -and $_.SupportedSystems.Brand.Model.Name -eq $systemModel}
+$DriverPackage = $XmlContent.DriverPackManifest.DriverPackage | Where-Object {$_.SupportedOperatingSystems.OperatingSystem.osCode -eq $targetOs -and $_.SupportedOperatingSystems.OperatingSystem.osArch -eq $targetArch -and $_.SupportedSystems.Brand.Model.Name -eq $systemModel}
+If (-not $DriverPackage) { Exit 1 }
 #endregion
 
 
@@ -54,7 +56,7 @@ Write-Output "`n`t --- DriverPackage ---"
 $DriverPackageUrl = "https://downloads.dell.com/$($DriverPackage.path)"
 $DriverPackageExe = "$rootFolder\$($DriverPackage.path.Split("/") | Where-Object {$_ -match ".exe"})"
 
-$DriverPackageExtract = "$rootFolder\$($DriverPackage.dellVersion)"
+$DriverPackageExtract = ("$rootFolder\$($systemModel)_$($targetOs)_DriverPackage_$($DriverPackage.dellVersion)") -Replace(' ')
 If (Test-Path $DriverPackageExtract -ErrorAction:SilentlyContinue) {Remove-Item -Path $DriverPackageExtract -Force -Recurse}
 New-Item -Path $DriverPackageExtract -ItemType Directory -ErrorAction:SilentlyContinue | Out-Null
 
